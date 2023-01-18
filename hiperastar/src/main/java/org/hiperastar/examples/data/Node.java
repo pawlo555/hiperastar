@@ -1,4 +1,4 @@
-package org.hiperastar;
+package org.hiperastar.examples.data;
 
 public class Node
 {
