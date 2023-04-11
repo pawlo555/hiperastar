@@ -9,8 +9,7 @@ public class AStarHeuristicForNode implements AStarAdmissibleHeuristic<Node> {
     public double getCostEstimate(Node sourceVertex, Node targetVertex) {
         double diffX = sourceVertex.getX() - targetVertex.getX();
         double diffY = sourceVertex.getY() - targetVertex.getY();
-        double distanceSquared = diffX*diffX + diffY*diffY;
-        return distanceSquared;
+        return Math.abs(diffX) + Math.abs(diffY);
     }
 
     @Override
