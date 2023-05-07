@@ -15,6 +15,9 @@ import org.jgrapht.graph.DefaultDirectedGraph;
 import org.jgrapht.graph.DefaultWeightedEdge;
 import org.jgrapht.util.SupplierUtil;
 import org.junit.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -78,9 +81,10 @@ public class TestCHAStar {
         return new ContractionHierarchyAstar<>(ch);
     }
 
-    @Test
-    public void testAddingVariables() {
-        Graph<Node, DefaultWeightedEdge> graph = createGraph(4, 4);
+    @ParameterizedTest
+    @ValueSource(ints = {2, 3, 4, 5, 50})
+    public void testAddingVariables(int size) {
+        Graph<Node, DefaultWeightedEdge> graph = createGraph(size, size);
 
         Node source = null;
         Node sink = null;
@@ -89,11 +93,10 @@ public class TestCHAStar {
             if (node.getX() == 0 && node.getY() == 0) {
                 source = node;
             }
-            if (node.getX() == 3 && node.getY() == 3) {
+            if (node.getX() == size-1 && node.getY() == size-1) {
                 sink = node;
             }
         }
-
 
         ShortestPathAlgorithm<Node, DefaultWeightedEdge> chBidirectionalDijkstra = createCHBidirectionalDijkstra(graph);
         ShortestPathAlgorithm<Node, DefaultWeightedEdge> chAStar = createCHAStar(graph);
@@ -108,6 +111,5 @@ public class TestCHAStar {
             System.out.println(properPath.getVertexList().get(i) + " - " + customPath.getVertexList().get(i));
             assertEquals(properPath.getVertexList().get(i), customPath.getVertexList().get(i));
         }
-
     }
 }

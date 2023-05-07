@@ -125,6 +125,7 @@ public class ContractionHierarchyAstar<V, E>
     public ContractionHierarchyAstar(CustomContractionHierarchyPrecomputation.ContractionHierarchy<V, E> hierarchy)
     {
         this(hierarchy, Double.POSITIVE_INFINITY, PairingHeap::new);
+        System.out.println("Constructor");
     }
 
     /**
@@ -153,6 +154,7 @@ public class ContractionHierarchyAstar<V, E>
     @Override
     public GraphPath<V, E> getPath(V source, V sink)
     {
+        System.out.println("Janusz");
         if (!graph.containsVertex(source)) {
             throw new IllegalArgumentException(GRAPH_MUST_CONTAIN_THE_SOURCE_VERTEX);
         }
@@ -171,17 +173,19 @@ public class ContractionHierarchyAstar<V, E>
         // create frontiers
         ContractionSearchFrontier<CustomContractionHierarchyPrecomputation.ContractionVertex<V>, CustomContractionHierarchyPrecomputation.ContractionEdge<E>> forwardFrontier =
                 new ContractionSearchFrontier<>(
-                        new MaskSubgraph<>(contractionGraph, v -> false, e -> !e.isUpward), heapSupplier);
-
-        ContractionSearchFrontier<CustomContractionHierarchyPrecomputation.ContractionVertex<V>,
-                CustomContractionHierarchyPrecomputation.ContractionEdge<E>> backwardFrontier = new ContractionSearchFrontier<>(
-                new MaskSubgraph<>(
-                        new EdgeReversedGraph<>(contractionGraph), v -> false, e -> e.isUpward),
-                heapSupplier);
+                        new MaskSubgraph<>(contractionGraph, v -> false, e -> false), heapSupplier);
+        Graph<CustomContractionHierarchyPrecomputation.ContractionVertex<V>, CustomContractionHierarchyPrecomputation.ContractionEdge<E>> graph_one =
+                new MaskSubgraph<CustomContractionHierarchyPrecomputation.ContractionVertex<V>, CustomContractionHierarchyPrecomputation.ContractionEdge<E>>(contractionGraph, v -> false, e -> !e.isUpward);
+        //System.out.println(graph_one);
+//        ContractionSearchFrontier<CustomContractionHierarchyPrecomputation.ContractionVertex<V>,
+//                CustomContractionHierarchyPrecomputation.ContractionEdge<E>> backwardFrontier = new ContractionSearchFrontier<>(
+//                new MaskSubgraph<>(
+//                        new EdgeReversedGraph<>(contractionGraph), v -> false, e -> e.isUpward),
+//                heapSupplier);
 
         // initialize both frontiers
         forwardFrontier.updateDistance(contractedSource, null, 0d);
-        backwardFrontier.updateDistance(contractedSink, null, 0d);
+        //backwardFrontier.updateDistance(contractedSink, null, 0d);
 
         // initialize best path
         double bestPath = Double.POSITIVE_INFINITY;
@@ -189,24 +193,27 @@ public class ContractionHierarchyAstar<V, E>
 
         ContractionSearchFrontier<CustomContractionHierarchyPrecomputation.ContractionVertex<V>, CustomContractionHierarchyPrecomputation.ContractionEdge<E>> frontier =
                 forwardFrontier;
-        ContractionSearchFrontier<CustomContractionHierarchyPrecomputation.ContractionVertex<V>, CustomContractionHierarchyPrecomputation.ContractionEdge<E>> otherFrontier =
-                backwardFrontier;
+//        ContractionSearchFrontier<CustomContractionHierarchyPrecomputation.ContractionVertex<V>, CustomContractionHierarchyPrecomputation.ContractionEdge<E>> otherFrontier =
+//                backwardFrontier;
 
         while (true) {
             if (frontier.heap.isEmpty()) {
                 frontier.isFinished = true;
             }
-            if (otherFrontier.heap.isEmpty()) {
-                otherFrontier.isFinished = true;
-            }
+            //System.out.println("In loop");
+            //if (otherFrontier.heap.isEmpty()) {
+            //    otherFrontier.isFinished = true;
+            //}
 
             // stopping condition for search
-            if (frontier.isFinished && otherFrontier.isFinished) {
+            if (frontier.isFinished ) {//&& otherFrontier.isFinished) {
+                //System.out.println("Breaking");
                 break;
             }
 
             // stopping condition for current frontier
             if (frontier.heap.findMin().getKey() >= bestPath) {
+                //System.out.println("Min path");
                 frontier.isFinished = true;
             } else {
 
@@ -216,6 +223,7 @@ public class ContractionHierarchyAstar<V, E>
                         frontier.heap.deleteMin();
                 CustomContractionHierarchyPrecomputation.ContractionVertex<V> v = node.getValue().getFirst();
                 double vDistance = node.getKey();
+                //System.out.println("Distance: " + vDistance + " Node: " + node.getValue().getFirst().vertex);
 
                 for (CustomContractionHierarchyPrecomputation.ContractionEdge<E> e : frontier.graph.outgoingEdgesOf(v)) {
                     CustomContractionHierarchyPrecomputation.ContractionVertex<V> u = frontier.graph.getEdgeTarget(e);
@@ -225,7 +233,14 @@ public class ContractionHierarchyAstar<V, E>
                     frontier.updateDistance(u, e, vDistance + eWeight);
 
                     // check path with u's distance from the other frontier
-                    double pathDistance = vDistance + eWeight + otherFrontier.getDistance(u);
+                    double otherDistance = Double.POSITIVE_INFINITY;
+                    if (u.vertex.equals(contractedSink.vertex)) {
+                        //System.out.println("get the way");
+                        otherDistance = 0;
+                    }
+                    //System.out.println("U vertex:" + u.vertex + " - " + contractedSink.vertex.toString());
+                    //System.out.println("Other distance: " + otherFrontier.getDistance(u));
+                    double pathDistance = vDistance + eWeight + otherDistance;
 
                     if (pathDistance < bestPath) {
                         bestPath = pathDistance;
@@ -235,19 +250,20 @@ public class ContractionHierarchyAstar<V, E>
             }
 
             // swap frontiers only if the other frontier is not yet finished
-            if (!otherFrontier.isFinished) {
-                ContractionSearchFrontier<CustomContractionHierarchyPrecomputation.ContractionVertex<V>, CustomContractionHierarchyPrecomputation.ContractionEdge<E>> tmpFrontier =
-                        frontier;
-                frontier = otherFrontier;
-                otherFrontier = tmpFrontier;
-            }
+//            if (!otherFrontier.isFinished) {
+//                ContractionSearchFrontier<CustomContractionHierarchyPrecomputation.ContractionVertex<V>, CustomContractionHierarchyPrecomputation.ContractionEdge<E>> tmpFrontier =
+//                        frontier;
+//                frontier = otherFrontier;
+//                otherFrontier = tmpFrontier;
+//            }
         }
 
         // create path if found
         if (Double.isFinite(bestPath) && bestPath <= radius) {
             assert bestPathCommonVertex != null;
+            System.out.println("Here we are");
             return createPath(
-                    forwardFrontier, backwardFrontier, bestPath, contractedSource, bestPathCommonVertex,
+                    forwardFrontier, bestPath, contractedSource, bestPathCommonVertex,
                     contractedSink);
         } else {
             return createEmptyPath(source, sink);
@@ -259,7 +275,6 @@ public class ContractionHierarchyAstar<V, E>
      * information provided by search frontiers and common vertex.
      *
      * @param forwardFrontier forward direction frontier
-     * @param backwardFrontier backward direction frontier
      * @param weight weight of the shortest path
      * @param source path source
      * @param commonVertex path common vertex
@@ -268,11 +283,10 @@ public class ContractionHierarchyAstar<V, E>
      */
     private GraphPath<V, E> createPath(
             ContractionSearchFrontier<CustomContractionHierarchyPrecomputation.ContractionVertex<V>, CustomContractionHierarchyPrecomputation.ContractionEdge<E>> forwardFrontier,
-            ContractionSearchFrontier<CustomContractionHierarchyPrecomputation.ContractionVertex<V>, CustomContractionHierarchyPrecomputation.ContractionEdge<E>> backwardFrontier,
             double weight, CustomContractionHierarchyPrecomputation.ContractionVertex<V> source, CustomContractionHierarchyPrecomputation.ContractionVertex<V> commonVertex,
             CustomContractionHierarchyPrecomputation.ContractionVertex<V> sink)
     {
-
+        //System.out.println("In create path");
         LinkedList<E> edgeList = new LinkedList<>();
         LinkedList<V> vertexList = new LinkedList<>();
 
@@ -294,17 +308,17 @@ public class ContractionHierarchyAstar<V, E>
 
         // traverse reverse path
         v = commonVertex;
-        while (true) {
-            CustomContractionHierarchyPrecomputation.ContractionEdge<E> e = backwardFrontier.getTreeEdge(v);
-
-            if (e == null) {
-                break;
-            }
-
-            contractionHierarchy.unpackForward(e, vertexList, edgeList);
-            v = contractionGraph.getEdgeTarget(e);
-        }
-
+//        while (true) {
+//            CustomContractionHierarchyPrecomputation.ContractionEdge<E> e = backwardFrontier.getTreeEdge(v);
+//
+//            if (e == null) {
+//                break;
+//            }
+//
+//            contractionHierarchy.unpackForward(e, vertexList, edgeList);
+//            v = contractionGraph.getEdgeTarget(e);
+//        }
+        //System.out.println("Source:" + source.vertex + " - " + sink.vertex);
         return new GraphWalk<>(graph, source.vertex, sink.vertex, vertexList, edgeList, weight);
     }
 
