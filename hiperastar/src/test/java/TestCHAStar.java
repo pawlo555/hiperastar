@@ -1,3 +1,10 @@
+import com.mxgraph.layout.mxCircleLayout;
+import com.mxgraph.layout.mxEdgeLabelLayout;
+import com.mxgraph.layout.mxIGraphLayout;
+import com.mxgraph.layout.mxPartitionLayout;
+import com.mxgraph.layout.orthogonal.mxOrthogonalLayout;
+import com.mxgraph.util.mxCellRenderer;
+import org.hiperastar.contraction_hierarchies_astar.BidirectionalDijkstraShortestPath;
 import org.hiperastar.contraction_hierarchies_astar.ContractionHierarchyAstar;
 import org.hiperastar.contraction_hierarchies_astar.CustomContractionHierarchyPrecomputation;
 
@@ -9,18 +16,23 @@ import org.jgrapht.alg.shortestpath.ContractionHierarchyBidirectionalDijkstra;
 import org.jgrapht.alg.shortestpath.ContractionHierarchyPrecomputation;
 
 
+import org.jgrapht.ext.JGraphXAdapter;
 import org.jgrapht.generate.GraphGenerator;
 import org.jgrapht.generate.GridGraphGenerator;
 import org.jgrapht.graph.DefaultDirectedGraph;
 import org.jgrapht.graph.DefaultWeightedEdge;
 import org.jgrapht.util.SupplierUtil;
-import org.junit.Test;
 import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
+
+import javax.imageio.ImageIO;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+import java.awt.*;
+import java.awt.image.BufferedImage;
+import java.io.File;
+import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadPoolExecutor;
@@ -46,9 +58,12 @@ public class TestCHAStar {
         GraphGenerator<Node, DefaultWeightedEdge, Node> generator = new GridGraphGenerator<>(rows, cols);
         generator.generateGraph(graph);
 
+        Random numberGenerator = new Random(42);
         Set<DefaultWeightedEdge> edges = graph.edgeSet();
+        int j = 2;
         for(DefaultWeightedEdge edge : edges) {
-            graph.setEdgeWeight(edge, Math.random() * (10 - 1) + 1);
+            graph.setEdgeWeight(edge, (double)(Math.abs(numberGenerator.nextDouble()) + 2));
+            j++;
         }
 
         return graph;
@@ -82,7 +97,7 @@ public class TestCHAStar {
     }
 
     @ParameterizedTest
-    @ValueSource(ints = {2, 3, 4, 5, 50})
+    @ValueSource(ints = {2, 3, 4, 5, 6, 15, 30})
     public void testAddingVariables(int size) {
         Graph<Node, DefaultWeightedEdge> graph = createGraph(size, size);
 
@@ -98,18 +113,38 @@ public class TestCHAStar {
             }
         }
 
-        ShortestPathAlgorithm<Node, DefaultWeightedEdge> chBidirectionalDijkstra = createCHBidirectionalDijkstra(graph);
+        for (DefaultWeightedEdge edge: graph.edgeSet()) {
+            System.out.println(edge.toString() + "--" + graph.getEdgeWeight(edge));
+        }
+
+        //ShortestPathAlgorithm<Node, DefaultWeightedEdge> chBidirectionalDijkstra = createCHBidirectionalDijkstra(graph);
+        ShortestPathAlgorithm<Node, DefaultWeightedEdge> chBidirectionalDijkstra = new BidirectionalDijkstraShortestPath<>(graph);
         ShortestPathAlgorithm<Node, DefaultWeightedEdge> chAStar = createCHAStar(graph);
 
         GraphPath<Node, DefaultWeightedEdge> properPath = chBidirectionalDijkstra.getPath(source, sink);
         GraphPath<Node, DefaultWeightedEdge> customPath = chAStar.getPath(source, sink);
 
         assertEquals(properPath.getLength(), customPath.getLength());
-        System.out.println(properPath.getLength());
-
+        //System.out.println(properPath.getLength());
         for (int i=0; i<properPath.getLength(); i++) {
-            System.out.println(properPath.getVertexList().get(i) + " - " + customPath.getVertexList().get(i));
+            //System.out.println(properPath.getVertexList().get(i) + " - " + customPath.getVertexList().get(i));
+        }
+        //System.out.println("Weights:" + properPath.getWeight() + "--" + customPath.getWeight());
+        for (int i=0; i<properPath.getLength(); i++) {
             assertEquals(properPath.getVertexList().get(i), customPath.getVertexList().get(i));
         }
+
+//        JGraphXAdapter<Node, DefaultWeightedEdge> graphAdapter =
+//                new JGraphXAdapter<Node, DefaultWeightedEdge>(graph);
+//        mxIGraphLayout layout = new mxCircleLayout(graphAdapter);
+//        layout.execute(graphAdapter.getDefaultParent());
+//
+//        BufferedImage image =
+//                mxCellRenderer.createBufferedImage(graphAdapter, null, 2, Color.WHITE, true, null);
+//        File imgFile = new File("graph" + size +".png");
+//        try {
+//            ImageIO.write(image, "PNG", imgFile);
+//        } catch( Exception ignored) {}
+//        assertTrue(imgFile.exists());
     }
 }

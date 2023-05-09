@@ -17,8 +17,10 @@
  */
 package org.hiperastar.contraction_hierarchies_astar;
 
+import org.hiperastar.examples.AStarHeuristicForNode;
+import org.hiperastar.examples.data.Node;
 import org.jgrapht.*;
-import org.jgrapht.alg.util.*;
+import org.jgrapht.alg.interfaces.AStarAdmissibleHeuristic;
 import org.jgrapht.graph.*;
 import org.jgrapht.util.ConcurrencyUtil;
 import org.jheaps.*;
@@ -80,26 +82,26 @@ public class ContractionHierarchyAstar<V, E>
     /**
      * Contraction hierarchy which is used to compute shortest paths.
      */
-    private CustomContractionHierarchyPrecomputation.ContractionHierarchy<V, E> contractionHierarchy;
+    private final CustomContractionHierarchyPrecomputation.ContractionHierarchy<V, E> contractionHierarchy;
     /**
      * Contracted graph, which is used during the queries.
      */
-    private Graph<CustomContractionHierarchyPrecomputation.ContractionVertex<V>, CustomContractionHierarchyPrecomputation.ContractionEdge<E>> contractionGraph;
+    private final Graph<CustomContractionHierarchyPrecomputation.ContractionVertex<V>, CustomContractionHierarchyPrecomputation.ContractionEdge<E>> contractionGraph;
     /**
      * Mapping from original to contracted vertices.
      */
-    private Map<V, CustomContractionHierarchyPrecomputation.ContractionVertex<V>> contractionMapping;
+    private final Map<V, CustomContractionHierarchyPrecomputation.ContractionVertex<V>> contractionMapping;
 
     /**
      * Supplier for preferable heap implementation.
      */
-    private Supplier<
-            AddressableHeap<Double, Pair<CustomContractionHierarchyPrecomputation.ContractionVertex<V>, CustomContractionHierarchyPrecomputation.ContractionEdge<E>>>> heapSupplier;
+    private final Supplier<
+            AddressableHeap<Double, CustomContractionHierarchyPrecomputation.ContractionVertex<V>>> heapSupplier;
 
     /**
      * Radius of the search.
      */
-    private double radius;
+    private final double radius;
 
     /**
      * Constructs a new instance of the algorithm for a given {@code graph} and {@code executor}. It
@@ -125,7 +127,6 @@ public class ContractionHierarchyAstar<V, E>
     public ContractionHierarchyAstar(CustomContractionHierarchyPrecomputation.ContractionHierarchy<V, E> hierarchy)
     {
         this(hierarchy, Double.POSITIVE_INFINITY, PairingHeap::new);
-        System.out.println("Constructor");
     }
 
     /**
@@ -138,7 +139,7 @@ public class ContractionHierarchyAstar<V, E>
      */
     public ContractionHierarchyAstar(
             CustomContractionHierarchyPrecomputation.ContractionHierarchy<V, E> hierarchy, double radius, Supplier<
-            AddressableHeap<Double, Pair<CustomContractionHierarchyPrecomputation.ContractionVertex<V>, CustomContractionHierarchyPrecomputation.ContractionEdge<E>>>> heapSupplier)
+            AddressableHeap<Double, CustomContractionHierarchyPrecomputation.ContractionVertex<V>>> heapSupplier)
     {
         super(hierarchy.getGraph());
         this.contractionHierarchy = hierarchy;
@@ -154,7 +155,6 @@ public class ContractionHierarchyAstar<V, E>
     @Override
     public GraphPath<V, E> getPath(V source, V sink)
     {
-        System.out.println("Janusz");
         if (!graph.containsVertex(source)) {
             throw new IllegalArgumentException(GRAPH_MUST_CONTAIN_THE_SOURCE_VERTEX);
         }
@@ -170,40 +170,40 @@ public class ContractionHierarchyAstar<V, E>
         CustomContractionHierarchyPrecomputation.ContractionVertex<V> contractedSource = contractionMapping.get(source);
         CustomContractionHierarchyPrecomputation.ContractionVertex<V> contractedSink = contractionMapping.get(sink);
 
+        AStarHeuristicForNode heuristic = new AStarHeuristicForNode();
+
         // create frontiers
-        ContractionSearchFrontier<CustomContractionHierarchyPrecomputation.ContractionVertex<V>, CustomContractionHierarchyPrecomputation.ContractionEdge<E>> forwardFrontier =
-                new ContractionSearchFrontier<>(
-                        new MaskSubgraph<>(contractionGraph, v -> false, e -> false), heapSupplier);
-        Graph<CustomContractionHierarchyPrecomputation.ContractionVertex<V>, CustomContractionHierarchyPrecomputation.ContractionEdge<E>> graph_one =
-                new MaskSubgraph<CustomContractionHierarchyPrecomputation.ContractionVertex<V>, CustomContractionHierarchyPrecomputation.ContractionEdge<E>>(contractionGraph, v -> false, e -> !e.isUpward);
-        //System.out.println(graph_one);
-//        ContractionSearchFrontier<CustomContractionHierarchyPrecomputation.ContractionVertex<V>,
-//                CustomContractionHierarchyPrecomputation.ContractionEdge<E>> backwardFrontier = new ContractionSearchFrontier<>(
-//                new MaskSubgraph<>(
-//                        new EdgeReversedGraph<>(contractionGraph), v -> false, e -> e.isUpward),
-//                heapSupplier);
+        AStarContractionSearchFrontier<CustomContractionHierarchyPrecomputation.ContractionVertex<V>, CustomContractionHierarchyPrecomputation.ContractionEdge<E>> forwardFrontier =
+                new AStarContractionSearchFrontier(
+                        new MaskSubgraph<>(contractionGraph, v -> false, e -> !e.isUpward), sink, heapSupplier, heuristic);
+
+        AStarContractionSearchFrontier<CustomContractionHierarchyPrecomputation.ContractionVertex<V>,
+                CustomContractionHierarchyPrecomputation.ContractionEdge<E>> backwardFrontier = new AStarContractionSearchFrontier(
+                new MaskSubgraph<>(
+                        new EdgeReversedGraph<>(contractionGraph), v -> false, e -> e.isUpward), source,
+                heapSupplier, heuristic);
 
         // initialize both frontiers
-        forwardFrontier.updateDistance(contractedSource, null, 0d);
-        //backwardFrontier.updateDistance(contractedSink, null, 0d);
+        forwardFrontier.updateDistance(contractedSource, null, 0d, 0d);
+        backwardFrontier.updateDistance(contractedSink, null, 0d, 0d);
 
         // initialize best path
         double bestPath = Double.POSITIVE_INFINITY;
         CustomContractionHierarchyPrecomputation.ContractionVertex<V> bestPathCommonVertex = null;
 
-        ContractionSearchFrontier<CustomContractionHierarchyPrecomputation.ContractionVertex<V>, CustomContractionHierarchyPrecomputation.ContractionEdge<E>> frontier =
+        AStarContractionSearchFrontier<CustomContractionHierarchyPrecomputation.ContractionVertex<V>, CustomContractionHierarchyPrecomputation.ContractionEdge<E>> frontier =
                 forwardFrontier;
-//        ContractionSearchFrontier<CustomContractionHierarchyPrecomputation.ContractionVertex<V>, CustomContractionHierarchyPrecomputation.ContractionEdge<E>> otherFrontier =
-//                backwardFrontier;
+        AStarContractionSearchFrontier<CustomContractionHierarchyPrecomputation.ContractionVertex<V>, CustomContractionHierarchyPrecomputation.ContractionEdge<E>> otherFrontier =
+                backwardFrontier;
 
         while (true) {
-            if (frontier.heap.isEmpty()) {
+            if (frontier.openList.isEmpty()) {
                 frontier.isFinished = true;
             }
             //System.out.println("In loop");
-            //if (otherFrontier.heap.isEmpty()) {
-            //    otherFrontier.isFinished = true;
-            //}
+            if (otherFrontier.openList.isEmpty()) {
+                otherFrontier.isFinished = true;
+            }
 
             // stopping condition for search
             if (frontier.isFinished ) {//&& otherFrontier.isFinished) {
@@ -212,58 +212,56 @@ public class ContractionHierarchyAstar<V, E>
             }
 
             // stopping condition for current frontier
-            if (frontier.heap.findMin().getKey() >= bestPath) {
+            if (frontier.openList.findMin().getKey() >= bestPath) {
                 //System.out.println("Min path");
                 frontier.isFinished = true;
             } else {
 
                 // frontier scan
                 AddressableHeap.Handle<Double,
-                        Pair<CustomContractionHierarchyPrecomputation.ContractionVertex<V>, CustomContractionHierarchyPrecomputation.ContractionEdge<E>>> node =
-                        frontier.heap.deleteMin();
-                CustomContractionHierarchyPrecomputation.ContractionVertex<V> v = node.getValue().getFirst();
-                double vDistance = node.getKey();
-                //System.out.println("Distance: " + vDistance + " Node: " + node.getValue().getFirst().vertex);
+                        CustomContractionHierarchyPrecomputation.ContractionVertex<V>> node =
+                        frontier.openList.deleteMin();
+                CustomContractionHierarchyPrecomputation.ContractionVertex<V> v = node.getValue();
+                //double vDistance = node.getKey();
+                double vDistance = frontier.gScoreMap.get(v);
+                //System.out.println("Distance: " + vDistance + " Node: " + node.getValue().vertex);
 
                 for (CustomContractionHierarchyPrecomputation.ContractionEdge<E> e : frontier.graph.outgoingEdgesOf(v)) {
                     CustomContractionHierarchyPrecomputation.ContractionVertex<V> u = frontier.graph.getEdgeTarget(e);
 
                     double eWeight = frontier.graph.getEdgeWeight(e);
-
-                    frontier.updateDistance(u, e, vDistance + eWeight);
+                    double fScore = heuristic.getCostEstimate((Node)u.vertex, (Node)sink) + vDistance + eWeight;
+                    //System.out.println("Update: " + v.vertex + ", edge: " + e.edge + ", ten: " + (vDistance + eWeight) + ", Score: " + fScore);
+                    frontier.updateDistance(u, e, vDistance + eWeight, fScore);
 
                     // check path with u's distance from the other frontier
-                    double otherDistance = Double.POSITIVE_INFINITY;
-                    if (u.vertex.equals(contractedSink.vertex)) {
-                        //System.out.println("get the way");
-                        otherDistance = 0;
-                    }
                     //System.out.println("U vertex:" + u.vertex + " - " + contractedSink.vertex.toString());
                     //System.out.println("Other distance: " + otherFrontier.getDistance(u));
-                    double pathDistance = vDistance + eWeight + otherDistance;
+                    double pathDistance = vDistance + eWeight + otherFrontier.getDistance(u);
 
                     if (pathDistance < bestPath) {
                         bestPath = pathDistance;
+                        //System.out.println("AStar Path distance:" + bestPath);
                         bestPathCommonVertex = u;
                     }
                 }
             }
 
             // swap frontiers only if the other frontier is not yet finished
-//            if (!otherFrontier.isFinished) {
-//                ContractionSearchFrontier<CustomContractionHierarchyPrecomputation.ContractionVertex<V>, CustomContractionHierarchyPrecomputation.ContractionEdge<E>> tmpFrontier =
-//                        frontier;
-//                frontier = otherFrontier;
-//                otherFrontier = tmpFrontier;
-//            }
+            if (!otherFrontier.isFinished) {
+                AStarContractionSearchFrontier<CustomContractionHierarchyPrecomputation.ContractionVertex<V>,
+                        CustomContractionHierarchyPrecomputation.ContractionEdge<E>> tmpFrontier =
+                        frontier;
+                frontier = otherFrontier;
+                otherFrontier = tmpFrontier;
+            }
         }
 
         // create path if found
         if (Double.isFinite(bestPath) && bestPath <= radius) {
             assert bestPathCommonVertex != null;
-            System.out.println("Here we are");
             return createPath(
-                    forwardFrontier, bestPath, contractedSource, bestPathCommonVertex,
+                    forwardFrontier, backwardFrontier, bestPath, contractedSource, bestPathCommonVertex,
                     contractedSink);
         } else {
             return createEmptyPath(source, sink);
@@ -282,11 +280,11 @@ public class ContractionHierarchyAstar<V, E>
      * @return unpacked shortest path between source and sink
      */
     private GraphPath<V, E> createPath(
-            ContractionSearchFrontier<CustomContractionHierarchyPrecomputation.ContractionVertex<V>, CustomContractionHierarchyPrecomputation.ContractionEdge<E>> forwardFrontier,
+            AStarContractionSearchFrontier<CustomContractionHierarchyPrecomputation.ContractionVertex<V>, CustomContractionHierarchyPrecomputation.ContractionEdge<E>> forwardFrontier,
+            AStarContractionSearchFrontier<CustomContractionHierarchyPrecomputation.ContractionVertex<V>, CustomContractionHierarchyPrecomputation.ContractionEdge<E>> backwardFrontier,
             double weight, CustomContractionHierarchyPrecomputation.ContractionVertex<V> source, CustomContractionHierarchyPrecomputation.ContractionVertex<V> commonVertex,
             CustomContractionHierarchyPrecomputation.ContractionVertex<V> sink)
     {
-        //System.out.println("In create path");
         LinkedList<E> edgeList = new LinkedList<>();
         LinkedList<V> vertexList = new LinkedList<>();
 
@@ -297,28 +295,25 @@ public class ContractionHierarchyAstar<V, E>
         CustomContractionHierarchyPrecomputation.ContractionVertex<V> v = commonVertex;
         while (true) {
             CustomContractionHierarchyPrecomputation.ContractionEdge<E> e = forwardFrontier.getTreeEdge(v);
-
             if (e == null) {
                 break;
             }
-
             contractionHierarchy.unpackBackward(e, vertexList, edgeList);
             v = contractionGraph.getEdgeSource(e);
         }
 
         // traverse reverse path
         v = commonVertex;
-//        while (true) {
-//            CustomContractionHierarchyPrecomputation.ContractionEdge<E> e = backwardFrontier.getTreeEdge(v);
-//
-//            if (e == null) {
-//                break;
-//            }
-//
-//            contractionHierarchy.unpackForward(e, vertexList, edgeList);
-//            v = contractionGraph.getEdgeTarget(e);
-//        }
-        //System.out.println("Source:" + source.vertex + " - " + sink.vertex);
+        while (true) {
+            CustomContractionHierarchyPrecomputation.ContractionEdge<E> e = backwardFrontier.getTreeEdge(v);
+
+            if (e == null) {
+                break;
+            }
+
+            contractionHierarchy.unpackForward(e, vertexList, edgeList);
+            v = contractionGraph.getEdgeTarget(e);
+        }
         return new GraphWalk<>(graph, source.vertex, sink.vertex, vertexList, edgeList, weight);
     }
 
@@ -328,9 +323,9 @@ public class ContractionHierarchyAstar<V, E>
      * @param <V> vertices type
      * @param <E> edges type
      */
-    static class ContractionSearchFrontier<V, E>
+    static class AStarContractionSearchFrontier<V, E>
             extends
-            BidirectionalDijkstraShortestPath.DijkstraSearchFrontier<V, E>
+            AStarSearchFrontier<V, E>
     {
         boolean isFinished;
 
@@ -341,10 +336,102 @@ public class ContractionHierarchyAstar<V, E>
          * @param graph the graph
          * @param heapSupplier supplier for the preferable heap implementation
          */
-        ContractionSearchFrontier(
-                Graph<V, E> graph, Supplier<AddressableHeap<Double, Pair<V, E>>> heapSupplier)
+        AStarContractionSearchFrontier(
+                Graph<V, E> graph,
+                V sink,
+                Supplier<AddressableHeap<Double, V>> heapSupplier,
+                AStarAdmissibleHeuristic<V> heuristic)
         {
-            super(graph, heapSupplier);
+            super(graph, sink, heapSupplier, heuristic);
+        }
+    }
+
+    static class AStarSearchFrontier<V, E>
+            extends BaseBidirectionalShortestPathAlgorithm.BaseSearchFrontier<V, E>
+    {
+        /**
+         * End vertex of the frontier.
+         */
+        final V endVertex;
+        /**
+         * Heuristic used in this frontier.
+         */
+        final AStarAdmissibleHeuristic<V> heuristic;
+        /**
+         * Open nodes of the frontier.
+         */
+        final AddressableHeap<Double, V> openList;
+        final Map<V, AddressableHeap.Handle<Double, V>> vertexToHeapNodeMap;
+        /**
+         * Closed nodes of the frontier.
+         */
+        final Set<V> closedList;
+
+        /**
+         * Tentative distance to the vertices in tha graph computed so far.
+         */
+        final Map<V, Double> gScoreMap;
+        /**
+         * Predecessor map.
+         */
+        final Map<V, E> cameFrom;
+
+        AStarSearchFrontier(Graph<V, E> graph,
+                            V endVertex,
+                            Supplier<AddressableHeap<Double, V>> heapSupplier,
+                            AStarAdmissibleHeuristic<V> heuristic
+        )
+        {
+            super(graph);
+            this.endVertex = endVertex;
+            this.heuristic = heuristic;
+            openList = heapSupplier.get();
+            vertexToHeapNodeMap = new HashMap<>();
+            closedList = new HashSet<>();
+            gScoreMap = new HashMap<>();
+            cameFrom = new HashMap<>();
+        }
+
+        void updateDistance(V v, E e, double tentativeGScore, double fScore)
+        {
+            AddressableHeap.Handle<Double, V> node = vertexToHeapNodeMap.get(v);
+            if (vertexToHeapNodeMap.containsKey(v)) { // We re-encountered a vertex. It's
+                // either in the open or closed list.
+                if (tentativeGScore >= gScoreMap.get(v)) {// Ignore path since it is non-improving
+                    return;
+                }
+
+                cameFrom.put(v, e);
+                gScoreMap.put(v, tentativeGScore);
+
+                if (closedList.contains(v)) { // it's in the closed list. Move node back to
+                    // open list, since we discovered a shorter path to this node
+                    closedList.remove(v);
+                    openList.insert(fScore, v);
+                } else if (node.getKey() > fScore) { // It's in the open list
+                    //System.out.println(node.getKey() + "== " + fScore + " ! " + tentativeGScore);
+
+                    node.decreaseKey(fScore);
+                }
+            } else { // We've encountered a new vertex.
+                cameFrom.put(v, e);
+                gScoreMap.put(v, tentativeGScore);
+                node = openList.insert(fScore, v);
+                vertexToHeapNodeMap.put(v, node);
+            }
+        }
+
+        @Override
+        double getDistance(V v)
+        {
+            Double distance = gScoreMap.get(v);
+            return Objects.requireNonNullElse(distance, Double.POSITIVE_INFINITY);
+        }
+
+        @Override
+        E getTreeEdge(V v)
+        {
+            return cameFrom.get(v);
         }
     }
 }

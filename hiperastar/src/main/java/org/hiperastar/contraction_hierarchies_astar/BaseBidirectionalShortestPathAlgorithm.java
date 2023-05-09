@@ -61,7 +61,6 @@ public abstract class BaseBidirectionalShortestPathAlgorithm<V, E>
     {
         LinkedList<E> edgeList = new LinkedList<>();
         LinkedList<V> vertexList = new LinkedList<>();
-        System.out.println("Hello");
         // add common vertex
         vertexList.add(commonVertex);
 

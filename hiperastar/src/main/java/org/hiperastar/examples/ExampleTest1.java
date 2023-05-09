@@ -106,8 +106,8 @@ public class ExampleTest1 {
     public static ArrayList<Double> chCreate = new ArrayList<>();
     //public static ArrayList<Double> tnrCreate = new ArrayList<>();
 
-    public static List<Integer> sizesList = Arrays.asList(10, 20);
-    public static List<Integer> threadsCountList = Arrays.asList(6, 12);
+    public static List<Integer> sizesList = Arrays.asList(450);
+    public static List<Integer> threadsCountList = Arrays.asList(12);
     public static int requestCount = 10000;
 
     public static void main(String[] args) {

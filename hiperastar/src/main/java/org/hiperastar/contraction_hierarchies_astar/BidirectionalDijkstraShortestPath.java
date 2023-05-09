@@ -123,7 +123,6 @@ public final class BidirectionalDijkstraShortestPath<V, E>
     @Override
     public GraphPath<V, E> getPath(V source, V sink)
     {
-        System.out.println("Janusz");
         if (!graph.containsVertex(source)) {
             throw new IllegalArgumentException(GRAPH_MUST_CONTAIN_THE_SOURCE_VERTEX);
         }
@@ -182,6 +181,7 @@ public final class BidirectionalDijkstraShortestPath<V, E>
 
                 if (pathDistance < bestPath) {
                     bestPath = pathDistance;
+                    //System.out.println("Dijkstra Path distance:" + bestPath);
                     bestPathCommonVertex = u;
                 }
 
@@ -193,11 +193,9 @@ public final class BidirectionalDijkstraShortestPath<V, E>
             otherFrontier = tmpFrontier;
 
         }
-        System.out.println("Siema");
 
         // create path if found
         if (Double.isFinite(bestPath) && bestPath <= radius) {
-            System.out.println("Creating");
             return createPath(
                     forwardFrontier, backwardFrontier, bestPath, source, bestPathCommonVertex, sink);
         } else {
